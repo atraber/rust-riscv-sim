@@ -1,0 +1,23 @@
+[root]
+name = "riscv-sim"
+version = "0.1.0"
+dependencies = [
+ "elf 0.0.10 (git+https://github.com/cole14/rust-elf)",
+]
+
+[[package]]
+name = "byteorder"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "elf"
+version = "0.0.10"
+source = "git+https://github.com/cole14/rust-elf#44654da0c64d5646adb31f2f58803444c77458cb"
+dependencies = [
+ "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[metadata]
+"checksum byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "0fc10e8cc6b2580fda3f36eb6dc5316657f812a3df879a44a66fc9f0fdbc4855"
+"checksum elf 0.0.10 (git+https://github.com/cole14/rust-elf)" = "<none>"

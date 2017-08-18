@@ -1,0 +1,7 @@
+[package]
+name = "riscv-sim"
+version = "0.1.0"
+authors = ["Andreas Traber <andytraber@gmail.com>"]
+
+[dependencies]
+elf = { git = "https://github.com/cole14/rust-elf" }
