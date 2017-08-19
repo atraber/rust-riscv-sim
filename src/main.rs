@@ -7,7 +7,7 @@ fn main() {
     let mut mem = SimpleRam::new(128*1024);
     let mut cpu = CpuRegisters::new(0x0);
 
-    match elf_load("/home/atraber/Documents/rust-example/riscv-sim/tmp/hello.elf", &mut mem) {
+    match elf_load("tmp/hello.elf", &mut mem) {
         Ok(data) => {
             println!("Loading ok!");
             cpu.pc = data
@@ -122,7 +122,39 @@ fn insn_is_compressed(insn: u32) -> bool
 
 fn insn_decompress(compressed: u32) -> Result<u32, ()>
 {
-    return Ok(32);
+    return match compressed & 0x3 {
+        0b00 => Ok(0),
+        0b01 => {
+            return match (compressed >> 13) & 0x7 {
+                0b100 => {
+                    return match (compressed >> 10) & 0x3 {
+                        0b11 => {
+                            let opcode = 0b011_0011;
+                            let rs2 = ((compressed >> 2) & 0x07) + 8;
+                            let rs1 = ((compressed >> 7) & 0x07) + 8;
+
+                            let t = ((compressed >> 10) & 0x4) | (compressed >> 5) & 0x3;
+                            let (funct7, funct3) = match t {
+                                0b000 => (0b0100000, 0b000), // c.sub
+                                0b001 => (0b0000000, 0b100), // c.xor
+                                0b010 => (0b0100000, 0b110), // c.or
+                                0b011 => (0b0100000, 0b111), // c.and
+                                _     => panic!("TODO"),
+                            };
+
+                            return Ok(opcode | (rs1 << 7) | (funct3 << 12) | (rs1 << 15) |
+                                      (rs2 << 20) | (funct7 << 25));
+                        },
+                        _    => Err(()),
+                    }
+
+                },
+                _     => Err(()),
+            }
+        },
+        0b10 => Ok(0),
+        _    => Err(()),
+    };
 }
 
 fn decode_r_type(insn: u32) -> (u8, usize, usize, u8, usize)
@@ -188,6 +220,84 @@ fn decode_uj_type(insn: u32) -> (u32, usize)
     let rd       = ((insn >>  7) & 0x1F) as usize;
 
     return (imm, rd);
+}
+
+fn decode_cr_type(insn: u32) -> (u8, usize, usize)
+{
+    let funct4 = ((insn >> 12) & 0x0F) as u8;
+    let rd     = ((insn >>  7) & 0x1F) as usize;
+    let rs2    = ((insn >>  2) & 0x1F) as usize;
+
+    return (funct4, rd, rs2);
+}
+
+fn decode_ci_type(insn: u32) -> (u8, i16, usize)
+{
+    let funct3 = ((insn >> 13) & 0x07) as u8;
+    let imm6   = ((insn >> 12) & 0x01) << 5;
+    let imm0_5 = ((insn >>  2) & 0x1F);
+    let rd     = ((insn >>  7) & 0x1F) as usize;
+
+    let imm = (imm0_5 | imm6) as i16;
+
+    return (funct3, imm, rd);
+}
+
+fn decode_css_type(insn: u32) -> (u8, i16, usize)
+{
+    let funct3 = ((insn >> 13) & 0x07) as u8;
+    let imm    = ((insn >>  7) & 0x3F) as i16;
+    let rd     = ((insn >>  2) & 0x1F) as usize;
+
+    return (funct3, imm, rd);
+}
+
+fn decode_ciw_type(insn: u32) -> (u8, i16, usize)
+{
+    let funct3 = ((insn >> 13) & 0x07) as u8;
+    let imm    = ((insn >>  5) & 0xFF) as i16;
+    let rd     = ((insn >>  2) & 0x07) as usize + 8;
+
+    return (funct3, imm, rd);
+}
+
+fn decode_cl_type(insn: u32) -> (u8, i16, usize, usize)
+{
+    let funct3 = ((insn >> 13) & 0x07) as u8;
+    let imm2_4 = ((insn >> 10) & 0x07) << 2;
+    let imm0_1 =  (insn >>  5) & 0x03;
+    let rs1    = ((insn >>  7) & 0x07) as usize + 8;
+    let rd     = ((insn >>  2) & 0x07) as usize + 8;
+
+    let imm = (imm0_1 | imm2_4) as i16;
+
+    return (funct3, imm, rs1, rd);
+}
+
+fn decode_cs_type(insn: u32) -> (u8, i16, usize, usize)
+{
+    // cl and cs are functionally identical, just the name changes
+    return decode_cl_type(insn);
+}
+
+fn decode_cb_type(insn: u32) -> (u8, i16, usize)
+{
+    let funct3 = ((insn >> 13) & 0x07) as u8;
+    let off6_8 = ((insn >> 10) & 0x07) << 6;
+    let off1_5 = ((insn >>  2) & 0x1F) << 1;
+    let rs1    = ((insn >>  7) & 0x07) as usize + 8;
+
+    let off = (off1_5 | off6_8) as i16;
+
+    return (funct3, off, rs1);
+}
+
+fn decode_cj_type(insn: u32) -> (u8, i16)
+{
+    let funct3 =  ((insn >> 13) & 0x07) as u8;
+    let target = (((insn >>  2) & 0x7FF) << 1) as i16;
+
+    return (funct3, target);
 }
 
 fn riscv_extend(data: u64, size: usize, sign_extend: bool) -> u64 {
